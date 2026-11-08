@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10151c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>IMU Viewer (スマホ版)</title>
+<style>
+:root{--bg:#10151c;--fg:#e8edf2;--card:#1a222c;--muted:#8a97a6;--grid:#44505e;--green:#2ecc71;--red:#ff5c5c;--blue:#4aa3ff;--accent:#ffb020;--btn:#27323f;--btnfg:#e8edf2;color-scheme:dark light}
+@media (prefers-color-scheme: light){:root{--bg:#f2f5f8;--fg:#14202b;--card:#ffffff;--muted:#5d6b7a;--grid:#b8c2cd;--green:#18a558;--red:#d93636;--blue:#1b73d6;--accent:#c27a00;--btn:#e3e9ef;--btnfg:#14202b}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
+body{padding:env(safe-area-inset-top,0) calc(env(safe-area-inset-right,0) + 10px) calc(env(safe-area-inset-bottom,0) + 24px) calc(env(safe-area-inset-left,0) + 10px);max-width:560px;margin:0 auto}
+header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0 6px}
+.chip{background:var(--card);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--green)} .chip.bad{color:var(--red)} .chip.rec{color:#fff;background:var(--red);font-weight:700}
+#speed{margin-left:auto;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+#speed small{font-size:12px;color:var(--muted);font-weight:400}
+.card{background:var(--card);border-radius:16px;padding:8px;margin-top:8px}
+#state{font-size:24px;font-weight:800;text-align:center;min-height:34px;padding:6px 0 2px}
+#gg{width:min(100%,68vh);aspect-ratio:1/1;display:block;margin:0 auto}
+#ts{width:100%;height:190px;display:block}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 2px 2px}
+.num{background:transparent;text-align:center;padding:4px 2px}
+.num b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.num span{font-size:12px;color:var(--muted)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+button{font-size:16px;padding:14px 8px;border:0;border-radius:14px;background:var(--btn);color:var(--btnfg);font-weight:600;min-height:52px}
+button:active{filter:brightness(1.2)}
+button.primary{background:var(--blue);color:#fff}
+button.recbtn{background:var(--red);color:#fff;grid-column:1/3;font-size:19px;min-height:60px}
+button.on{outline:3px solid var(--green)}
+#msg{margin-top:10px;font-size:14px;color:var(--accent);min-height:20px;white-space:pre-wrap}
+details{margin-top:12px;background:var(--card);border-radius:14px;padding:10px 14px;font-size:14px;line-height:1.55}
+summary{font-weight:700;cursor:pointer} li{margin:4px 0}
+.small{font-size:12px;color:var(--muted)}
+
+.tabs{display:flex;gap:6px;margin:6px 0 4px}
+.tab{flex:1;font-size:15px;padding:10px 4px;min-height:44px;border-radius:12px;background:var(--btn)}
+.tab.on{background:var(--blue);color:#fff}
+canvas.map{width:100%;height:62vh;min-height:320px;display:block;border-radius:12px;touch-action:none;background:#cfd5db}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.row button{flex:1 1 30%;min-height:44px;padding:8px 4px;font-size:14px}
+.row select,.row label{font-size:14px;color:var(--fg)}
+.row select{background:var(--btn);border:0;border-radius:10px;padding:10px 8px;color:var(--btnfg);flex:1 1 30%}
+.info{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5;white-space:pre-wrap}
+#rGg{width:min(70%,45vh);max-width:260px;aspect-ratio:1/1;display:block;margin:8px auto 0}
+input[type=range]{width:100%;margin-top:8px}
+input[type=file]{width:100%;font-size:14px;margin-top:6px}
+#rRead{font-size:15px;font-variant-numeric:tabular-nums;margin-top:6px;line-height:1.6}
+
+.cmpcard{display:flex;gap:12px;align-items:center}
+#cmp{width:132px;height:132px;flex:none}
+#hdBig{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums}
+#hdSub{margin-top:4px;line-height:1.5}
+/* 横画面: 左=表示 / 右=ボタン の2列にする */
+@media (orientation:landscape) and (min-width:640px){
+  body{max-width:none}
+  .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:start}
+  .side{position:sticky;top:6px;max-height:calc(100vh - 12px);overflow:auto}
+  .btns{margin-top:0}
+  canvas.map{height:74vh;min-height:220px}
+  #gg{width:min(100%,60vh)}
+  #ts{height:150px}
+  #state{font-size:20px}
+}
+@media (orientation:landscape) and (max-height:480px){
+  header{padding:4px 0 2px} #speed{font-size:18px}
+  button{min-height:44px;padding:8px 6px;font-size:15px} button.recbtn{min-height:48px}
+}
+</style>
+</head>
+<body>
+<header>
+  <span class="chip" id="bleChip">Bluetooth: 未接続</span>
+  <span class="chip" id="gpsChip">GPS: OFF</span>
+  <span class="chip" id="recChip" style="display:none">● 記録中</span>
+  <div id="speed">--<small> km/h</small></div>
+</header>
+
+
+<div class="layout"><div class="main">
+<nav class="tabs">
+  <button class="tab on" data-tab="live">計器</button>
+  <button class="tab" data-tab="map">地図</button>
+  <button class="tab" data-tab="review">ログ確認</button>
+</nav>
+<section id="tab-live">
+<div class="card">
+  <div id="state">未接続</div>
+  <canvas id="gg"></canvas>
+  <div class="nums">
+    <div class="num"><b id="nLong">--</b><span>前後G (加速 +)</span></div>
+    <div class="num"><b id="nLat">--</b><span>横G (左 +)</span></div>
+    <div class="num"><b id="nYr">--</b><span>ヨーレート °/s</span></div>
+    <div class="num"><b id="nRoll">--</b><span>Roll ° (右下 +)</span></div>
+    <div class="num"><b id="nPitch">--</b><span>Pitch ° (前上 +)</span></div>
+    <div class="num"><b id="nYaw">--</b><span>Yaw ° (左 +)</span></div>
+  </div>
+</div>
+<div class="card cmpcard"><canvas id="cmp"></canvas><div><div id="hdBig">--</div><div id="hdSub" class="small"></div></div></div>
+<div class="card"><canvas id="ts"></canvas></div>
+</section>
+
+<section id="tab-map" hidden>
+  <div class="card">
+    <canvas id="map" class="map"></canvas>
+    <div class="row">
+      <button id="mFollow">追従 / 全体</button>
+      <button id="mZin">＋</button><button id="mZout">－</button>
+      <select id="mColor"><option value="speed">色: 速度</option><option value="lat">色: 横G</option><option value="long">色: 前後G</option><option value="yaw">色: ヨーレート</option></select>
+      <select id="mSrc"><option value="osm">地図: OpenStreetMap</option><option value="gsi">地図: 国土地理院(日本)</option></select>
+      <button id="mNet">地図の通信: ON</button>
+    </div>
+    <div class="row"><label><input type="checkbox" id="mPersist"> 取得した地図を端末に保存する(次回、電波なしでも表示できる)</label></div>
+    <div class="info" id="mInfo"></div>
+  </div>
+</section>
+
+<section id="tab-review" hidden>
+  <div class="card">
+    <div class="info">記録したCSVを読み込むと、走行軌跡を地図に重ねて、各地点のIMUデータ(加速度・ヨーレート・速度)を確認できます。
+地図はオンラインのときだけ取得します(オフラインなら無地の背景で軌跡だけ表示)。</div>
+    <input type="file" id="rFile" accept=".csv,text/csv">
+    <canvas id="rMap" class="map" style="margin-top:8px"></canvas>
+    <div class="row">
+      <select id="rColor"><option value="speed">色: 速度</option><option value="lat">色: 横G</option><option value="long">色: 前後G</option><option value="yaw">色: ヨーレート</option></select>
+      <button id="rFit">全体表示</button><button id="rZin">＋</button><button id="rZout">－</button>
+    </div>
+    <input type="range" id="rSlide" min="0" max="0" value="0">
+    <div class="row"><button id="rPlay">▶ 再生</button><select id="rSpeed"><option value="1">×1</option><option value="2">×2</option><option value="5">×5</option><option value="10">×10</option></select><button id="rPng">地図をPNG保存</button></div>
+    <div id="rRead"></div>
+    <canvas id="rGg"></canvas>
+    <div class="info" id="rInfo"></div>
+  </div>
+</section>
+
+</div><!-- /main -->
+<div class="side">
+<div class="btns">
+  <button class="primary" id="bConnect">① 接続 (Bluetooth)</button>
+  <button id="bDemo">デモ (センサー無し)</button>
+  <button class="recbtn" id="bRec">● 記録開始</button>
+  <button id="bGps">GPS: OFF → ON</button>
+  <button id="bGyro">ジャイロ校正</button>
+  <button id="bLevel">水平校正</button>
+  <button id="bAlign">向き校正</button>
+  <button id="bYaw">Yaw を 0 に</button>
+  <button id="bDisc">切断</button>
+</div>
+<div id="msg"></div>
+
+<details>
+  <summary>使い方 (はじめに読む)</summary>
+  <ol>
+    <li>Arduino に <b>giga_imu_ble_v2.ino</b> を書き込み、電源を入れる。</li>
+    <li>スマホの <b>Bluetooth と 位置情報(GPS)</b> をオンにして、「① 接続」を押し、一覧から GIGA-IMU を選ぶ。</li>
+    <li>平らな場所で停車して数秒待つ → 画面に「停止中」と出たら <b>水平校正</b>。</li>
+    <li>走行して、カーブを数回曲がったら <b>向き校正</b> (センサーの前後左右の向きを自動で合わせる)。一度合わせれば、センサーを動かさない限り不要。</li>
+    <li>「● 記録開始」→ 終わったら「■ 停止して保存」。CSV がスマホの「ダウンロード」フォルダに保存される。PCの <b>imu_viewer_v4_1.py --replay</b> でそのまま再生できる。GPSを入れて記録した場合は、PCの <b>imu_viewer_v5.py --export-map</b> で軌跡を地図に重ねられる。</li>
+  </ol>
+  <p class="small">矢印は「重力を除いた、車の加速度」(2Hzフィルタ)。真上から見た図で、上=前方。加速=緑、ブレーキ=赤、旋回=青。<br>
+  停車を検出すると、Yawを固定しジャイロのゼロ点を自動で学習します(ドリフト対策)。<br>
+  画面は記録中スリープしません。長時間(30分以上)の記録は、スマホのメモリ消費が増えるので分割してください。</p>
+</details>
+<p class="small" id="foot"></p>
+</div><!-- /side -->
+</div><!-- /layout -->
+
+<script id="core">
+/* ===================== CORE (計算部分: Python版 imu_viewer_v4_1.py と同じアルゴリズム) ===================== */
+const CFG = {
+  BETA: 0.01, BETA_INIT: 1.0, INIT_SECONDS: 1.0, BETA_STILL: 0.5, ACC_TRUST_BAND: 0.10, YAWRATE_GATE_DPS: 6.0,
+  GYRO_LPF_HZ: 5.0, ACC_FUSION_LPF_HZ: 1.0, CALIB_SECONDS: 2.0,
+  STILL_WINDOW_S: 0.5, STILL_ACC_STD_G: 0.04, STILL_GYRO_STD_DPS: 0.6, STILL_GYRO_MEAN_DPS: 1.5,
+  STILL_STABLE_G: 0.02, STILL_REF_SHIFT_G: 0.03, BIAS_TAU_S: 3.0, BIAS_START_DELAY_S: 1.0,
+  ACC_DISPLAY_LPF_HZ: 2.0, ACC_THRESHOLD_G: 0.07, GG_RANGE_G: 0.5, TRAIL_SECONDS: 3.0, HISTORY_SECONDS: 10.0,
+  GPS_MAX_GAP_S: 3.0, YAW_ZERO_ON_RECORD: true,
+};
+const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const scl3 = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const norm3 = (a) => Math.sqrt(dot3(a, a));
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const mv3 = (M, v) => [dot3(M[0], v), dot3(M[1], v), dot3(M[2], v)];
+const mm3 = (A, B) => A.map((r) => [0, 1, 2].map((j) => r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j]));
+const eye3 = () => [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+
+function qmul(a, b) {
+  const [w1, x1, y1, z1] = a, [w2, x2, y2, z2] = b;
+  return [w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+          w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2];
+}
+function madgwick(q, g, acc, dt, beta) {
+  const [q0, q1, q2, q3] = q;
+  const gq = qmul(q, [0, g[0], g[1], g[2]]);
+  let qd = [0.5 * gq[0], 0.5 * gq[1], 0.5 * gq[2], 0.5 * gq[3]];
+  const n = norm3(acc);
+  if (beta > 0 && n > 1e-6) {
+    const a = [acc[0] / n, acc[1] / n, acc[2] / n];
+    const f = [2 * (q1 * q3 - q0 * q2) - a[0], 2 * (q0 * q1 + q2 * q3) - a[1], 2 * (0.5 - q1 * q1 - q2 * q2) - a[2]];
+    const J = [[-2 * q2, 2 * q3, -2 * q0, 2 * q1], [2 * q1, 2 * q0, 2 * q3, 2 * q2], [0, -4 * q1, -4 * q2, 0]];
+    const st = [0, 1, 2, 3].map((j) => J[0][j] * f[0] + J[1][j] * f[1] + J[2][j] * f[2]);
+    const sn = Math.sqrt(st[0] * st[0] + st[1] * st[1] + st[2] * st[2] + st[3] * st[3]);
+    if (sn > 0) qd = qd.map((v, i) => v - beta * st[i] / sn);
+  }
+  const nq = [q0 + qd[0] * dt, q1 + qd[1] * dt, q2 + qd[2] * dt, q3 + qd[3] * dt];
+  const m = Math.sqrt(nq[0] * nq[0] + nq[1] * nq[1] + nq[2] * nq[2] + nq[3] * nq[3]);
+  return nq.map((v) => v / m);
+}
+function quatToR(q) {
+  const [q0, q1, q2, q3] = q;
+  return [[1 - 2 * (q2 * q2 + q3 * q3), 2 * (q1 * q2 + q0 * q3), 2 * (q1 * q3 - q0 * q2)],
+          [2 * (q1 * q2 - q0 * q3), 1 - 2 * (q1 * q1 + q3 * q3), 2 * (q2 * q3 + q0 * q1)],
+          [2 * (q1 * q3 + q0 * q2), 2 * (q2 * q3 - q0 * q1), 1 - 2 * (q1 * q1 + q2 * q2)]];
+}
+function matToQuat(Rm) {
+  const R = [[Rm[0][0], Rm[1][0], Rm[2][0]], [Rm[0][1], Rm[1][1], Rm[2][1]], [Rm[0][2], Rm[1][2], Rm[2][2]]];
+  const tr = R[0][0] + R[1][1] + R[2][2];
+  let w, x, y, z, S;
+  if (tr > 0) { S = Math.sqrt(tr + 1) * 2; w = 0.25 * S; x = (R[2][1] - R[1][2]) / S; y = (R[0][2] - R[2][0]) / S; z = (R[1][0] - R[0][1]) / S; }
+  else if (R[0][0] > R[1][1] && R[0][0] > R[2][2]) { S = Math.sqrt(1 + R[0][0] - R[1][1] - R[2][2]) * 2; w = (R[2][1] - R[1][2]) / S; x = 0.25 * S; y = (R[0][1] + R[1][0]) / S; z = (R[0][2] + R[2][0]) / S; }
+  else if (R[1][1] > R[2][2]) { S = Math.sqrt(1 + R[1][1] - R[0][0] - R[2][2]) * 2; w = (R[0][2] - R[2][0]) / S; x = (R[0][1] + R[1][0]) / S; y = 0.25 * S; z = (R[1][2] + R[2][1]) / S; }
+  else { S = Math.sqrt(1 + R[2][2] - R[0][0] - R[1][1]) * 2; w = (R[1][0] - R[0][1]) / S; x = (R[0][2] + R[2][0]) / S; y = (R[1][2] + R[2][1]) / S; z = 0.25 * S; }
+  const m = Math.sqrt(w * w + x * x + y * y + z * z);
+  return [w / m, x / m, y / m, z / m];
+}
+const RAD = Math.PI / 180, DEG = 180 / Math.PI;
+function eulerDeg(R) {
+  return [Math.atan2(R[1][2], R[2][2]) * DEG, Math.asin(Math.max(-1, Math.min(1, R[0][2]))) * DEG, Math.atan2(R[0][1], R[0][0]) * DEG];
+}
+const lpAlpha = (dt, fc) => { const tau = 1 / (2 * Math.PI * fc); return dt / (tau + dt); };
+
+function newState() {
+  return {
+    q: [1, 0, 0, 0], t0: null, bias: [0, 0, 0], mount: eye3(),
+    gl: null, af: null, linF: [0, 0, 0], win: [], still: false, stillSince: null, lastEval: -1e9,
+    stillAccMean: null, stillRef: null, meanHist: [],
+    calib: { active: false, tEnd: 0, samples: [] },
+    latest: { f: [0, 0, 1], lin: [0, 0, 0], linF: [0, 0, 0], R: eye3(), roll: 0, pitch: 0, yaw: 0, yawrate: 0, still: false, t: 0, has: false },
+    history: [], trail: [], alignHist: [],
+    rec: { on: false, rows: [], tPc0: 0, startDate: null, meta: null },
+    message: "", messageUntil: 0, ggRange: CFG.GG_RANGE_G,
+  };
+}
+let S = newState();
+function setMessage(text, sec = 8) { S.message = text; S.messageUntil = Date.now() + sec * 1000; }
+function trimArr(a, max) { if (a.length > max * 1.15) a.splice(0, a.length - max); }
+
+function resetFusion() {
+  S.q = [1, 0, 0, 0]; S.t0 = null; S.gl = null; S.af = null; S.linF = [0, 0, 0];
+  S.still = false; S.stillSince = null; S.lastEval = -1e9; S.stillAccMean = null; S.stillRef = null;
+  S.win = []; S.meanHist = []; S.history = []; S.trail = []; S.alignHist = []; S.latest.has = false; S.latest.still = false;
+}
+function zeroYaw(quiet) {
+  const R = quatToR(S.q); const yaw = Math.atan2(R[0][1], R[0][0]);
+  const q = qmul([Math.cos(-yaw / 2), 0, 0, Math.sin(-yaw / 2)], S.q); const m = Math.hypot(q[0], q[1], q[2], q[3]);
+  S.q = q.map((v) => v / m);
+  if (!quiet) setMessage("Yaw を 0 に戻しました");
+}
+function applyFrameRotation(D) {
+  S.mount = mm3(D, S.mount);
+  S.q = matToQuat(mm3(D, quatToR(S.q)));
+  if (S.gl) S.gl = mv3(D, S.gl);
+  if (S.af) S.af = mv3(D, S.af);
+  S.linF = mv3(D, S.linF);
+  S.win = []; S.meanHist = []; S.still = false; S.stillSince = null; S.stillAccMean = null; S.stillRef = null;
+  S.history = []; S.trail = []; S.alignHist = [];
+}
+function meanOf(arrs) { const n = arrs.length; const m = [0, 0, 0]; for (const a of arrs) { m[0] += a[0]; m[1] += a[1]; m[2] += a[2]; } return [m[0] / n, m[1] / n, m[2] / n]; }
+function varOf(arrs, mean) { const n = arrs.length; const v = [0, 0, 0]; for (const a of arrs) for (let i = 0; i < 3; i++) v[i] += (a[i] - mean[i]) ** 2; return [v[0] / n, v[1] / n, v[2] / n]; }
+
+function updateStill(t, M, acc) {
+  const win = S.win;
+  if (t - S.lastEval >= 0.1 && win.length >= 10 && win[win.length - 1].t - win[0].t >= 0.9 * CFG.STILL_WINDOW_S) {
+    S.lastEval = t;
+    const A = win.map((w) => w.acc), Gs = win.map((w) => w.gs);
+    const amean = meanOf(A), av = varOf(A, amean);
+    const accStd = Math.sqrt((av[0] + av[1] + av[2]) / 3);
+    const Gv = Gs.map((g) => mv3(M, sub3(g, S.bias)));
+    const gm = meanOf(Gv); const gzStd = Math.sqrt(varOf(Gv, gm)[2]);
+    const basic = accStd < CFG.STILL_ACC_STD_G && gzStd < CFG.STILL_GYRO_STD_DPS && Math.abs(gm[2]) < CFG.STILL_GYRO_MEAN_DPS &&
+      Math.hypot(gm[0], gm[1]) < 3.0 && Math.abs(norm3(amean) - 1.0) < 0.06;
+    const mh = S.meanHist; mh.push({ t, m: amean });
+    while (mh.length && mh[0].t < t - 2.0) mh.shift();
+    let stable = false;
+    if (mh[0].t <= t - 0.9) {
+      let best = mh[0], bd = Math.abs(mh[0].t - (t - 1.0));
+      for (const e of mh) { const d = Math.abs(e.t - (t - 1.0)); if (d < bd) { bd = d; best = e; } }
+      stable = norm3(sub3(amean, best.m)) < CFG.STILL_STABLE_G;
+    }
+    if (S.still) {
+      if (!(basic && norm3(sub3(amean, S.stillRef)) < CFG.STILL_REF_SHIFT_G)) { S.still = false; S.stillSince = null; }
+    } else if (basic && stable) { S.still = true; S.stillSince = t; S.stillRef = amean.slice(); }
+    if (S.still) {
+      S.stillAccMean = amean;
+      if (t - S.stillSince >= CFG.BIAS_START_DELAY_S) {
+        const k = 1 - Math.exp(-0.1 / CFG.BIAS_TAU_S); const gsm = meanOf(Gs);
+        S.bias = add3(S.bias, scl3(sub3(gsm, S.bias), k));
+      }
+    }
+  }
+  if (S.still && S.stillAccMean && norm3(sub3(acc, S.stillAccMean)) > 0.25) { S.still = false; S.stillSince = null; }
+}
+
+function processSample(t, dt, accS, gyroS, tUnix) {
+  if (tUnix === undefined) tUnix = NaN;
+  const M = S.mount, acc = mv3(M, accS);
+  if (S.calib.active) {
+    S.calib.samples.push(gyroS.slice());
+    if (t >= S.calib.tEnd) {
+      S.calib.active = false; const s = S.calib.samples; S.calib.samples = [];
+      const m = meanOf(s), v = varOf(s, m);
+      if (s.length >= 10 && Math.sqrt(Math.max(v[0], v[1], v[2])) < 2.0) { S.bias = m; setMessage(`ジャイロ校正完了: ${m.map((x) => x.toFixed(2)).join(", ")} dps`, 10); }
+      else setMessage("ジャイロ校正に失敗(動いていました)。静止してやり直してください", 10);
+    }
+  }
+  const gyroV = mv3(M, sub3(gyroS, S.bias));
+  const glPrev = S.gl ? S.gl.slice() : gyroV.slice();
+  if (!S.gl) { S.gl = gyroV.slice(); S.af = acc.slice(); }
+  if (dt > 0) {
+    S.gl = add3(S.gl, scl3(sub3(gyroV, S.gl), lpAlpha(dt, CFG.GYRO_LPF_HZ)));
+    S.af = add3(S.af, scl3(sub3(acc, S.af), lpAlpha(dt, CFG.ACC_FUSION_LPF_HZ)));
+  }
+  S.win.push({ t, acc, gs: gyroS });
+  while (S.win.length && S.win[0].t < t - CFG.STILL_WINDOW_S) S.win.shift();
+  updateStill(t, M, acc);
+  const still = S.still;
+  if (S.t0 === null) S.t0 = t;
+  if (dt > 0) {
+    const yawF = S.gl[2]; let beta, w;
+    if (t - S.t0 < CFG.INIT_SECONDS) { beta = CFG.BETA_INIT; w = scl3(add3(glPrev, S.gl), 0.5); }
+    else if (still) { beta = CFG.BETA_STILL; w = [0, 0, 0]; }
+    else {
+      const n = norm3(S.af);
+      const trust = Math.max(0, 1 - Math.abs(n - 1) / CFG.ACC_TRUST_BAND) * Math.max(0, 1 - Math.abs(yawF) / CFG.YAWRATE_GATE_DPS);
+      beta = CFG.BETA * trust; w = scl3(add3(glPrev, S.gl), 0.5);
+    }
+    S.q = madgwick(S.q, scl3(w, RAD), S.af, dt, beta);
+  }
+  const R = quatToR(S.q), up = [R[0][2], R[1][2], R[2][2]];
+  const lin = sub3(acc, up);
+  if (dt > 0) S.linF = add3(S.linF, scl3(sub3(lin, S.linF), lpAlpha(dt, CFG.ACC_DISPLAY_LPF_HZ)));
+  const linF = S.linF.slice(), e = eulerDeg(R), yawrate = S.gl[2];
+  Object.assign(S.latest, { f: acc, lin, linF, R, roll: e[0], pitch: e[1], yaw: e[2], yawrate, still, t, has: true });
+  S.history.push([t, linF[0], linF[1], yawrate, e[0], e[1], e[2], still ? 1 : 0]);
+  S.trail.push([t, linF[0], linF[1]]);
+  S.alignHist.push([t, linF[0], linF[1], yawrate]);
+  trimArr(S.history, CFG.HISTORY_SECONDS * 300); trimArr(S.trail, CFG.TRAIL_SECONDS * 120); trimArr(S.alignHist, 180 * 120);
+  if (S.rec.on) {
+    S.rec.rows.push([t, (performance.now() - S.rec.tPc0) / 1000, accS[0], accS[1], accS[2], gyroS[0], gyroS[1], gyroS[2],
+      e[0], e[1], e[2], yawrate, lin[0], lin[1], lin[2], linF[0], linF[1], still ? 1 : 0, tUnix]);
+  }
+}
+
+function levelCalibration() {
+  if (!(S.still && S.stillAccMean)) { setMessage("平らな場所で停車し、画面に『停止中』と出てから押してください", 8); return; }
+  const g = S.stillAccMean.slice(), n = norm3(g), up = [g[0] / n, g[1] / n, g[2] / n];
+  const roll0 = Math.atan2(up[1], up[2]) * DEG, pitch0 = Math.asin(Math.max(-1, Math.min(1, up[0]))) * DEG;
+  const z = [0, 0, 1], v = cross3(up, z), s = norm3(v), c = dot3(up, z);
+  let D = eye3();
+  if (s > 1e-9) {
+    const K = [[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]], K2 = mm3(K, K), f = (1 - c) / (s * s);
+    D = [0, 1, 2].map((i) => [0, 1, 2].map((j) => (i === j ? 1 : 0) + K[i][j] + K2[i][j] * f));
+  }
+  applyFrameRotation(D);
+  setMessage(`水平校正OK (取り除いた傾き: roll ${roll0.toFixed(1)}°, pitch ${pitch0.toFixed(1)}°)`, 10);
+}
+function alignAxes() {
+  const A = S.alignHist;
+  if (A.length < 500) { setMessage("データ不足です。しばらく走行(カーブを数回)してから押してください", 8); return; }
+  let turnTime = 0, den = 0, nb = 0, bx = 0, by = 0, sx = 0, sy = 0;
+  for (let i = 0; i < A.length; i++) {
+    const r = A[i][3], dtt = i ? A[i][0] - A[i - 1][0] : 0;
+    if (Math.abs(r) > 6) { turnTime += dtt; den += r * r; } else if (Math.abs(r) < 2) { nb++; bx += A[i][1]; by += A[i][2]; }
+    sx += A[i][1]; sy += A[i][2];
+  }
+  if (turnTime < 6) { setMessage(`旋回が足りません(${turnTime.toFixed(1)}秒)。カーブを数回曲がってから押してください`, 10); return; }
+  const mx = nb > 100 ? bx / nb : sx / A.length, my = nb > 100 ? by / nb : sy / A.length;
+  let nx = 0, ny = 0;
+  for (const a of A) if (Math.abs(a[3]) > 6) { nx += (a[1] - mx) * a[3]; ny += (a[2] - my) * a[3]; }
+  const kx = nx / den, ky = ny / den, phi = Math.atan2(ky, kx) * DEG, cp = Math.cos(phi * RAD), sp = Math.sin(phi * RAD);
+  let n = 0, sP = 0, sR = 0, sPP = 0, sRR = 0, sPR = 0;
+  for (const a of A) if (Math.abs(a[3]) > 6) { const p = (a[1] - mx) * cp + (a[2] - my) * sp, r = a[3]; n++; sP += p; sR += r; sPP += p * p; sRR += r * r; sPR += p * r; }
+  const corr = (sPR / n - (sP / n) * (sR / n)) / Math.sqrt((sPP / n - (sP / n) ** 2) * (sRR / n - (sR / n) ** 2));
+  if (!(corr >= 0.5)) { setMessage(`向きの推定が不確実です(相関 ${corr.toFixed(2)})。もう少し走ってやり直してください`, 10); return; }
+  const delta = ((90 - phi + 180) % 360 + 360) % 360 - 180;
+  if (Math.abs(delta) < 2) { setMessage(`向きは合っています(誤差 ${delta.toFixed(1)}°)`, 8); return; }
+  const d = delta * RAD;
+  applyFrameRotation([[Math.cos(d), -Math.sin(d), 0], [Math.sin(d), Math.cos(d), 0], [0, 0, 1]]);
+  setMessage(`向き校正OK: 垂直軸まわりに ${delta.toFixed(1)}° 回転 (相関 ${corr.toFixed(2)})`, 12);
+}
+
+/* ---- GPS を IMU の時刻に補間 (Python版 attach_gps と同じ) ---- */
+function attachGps(rows, fixes) {
+  const out = rows.map((r) => r.concat([NaN, NaN, NaN, NaN]));
+  if (!fixes.length) return out;
+  const f = fixes.slice().sort((a, b) => a.t - b.t), n = f.length, ft = f.map((x) => x.t);
+  const interp = (tu, vals, ok) => {
+    const idx = []; for (let i = 0; i < n; i++) if (ok[i]) idx.push(i);
+    if (!idx.length) return NaN;
+    if (tu <= ft[idx[0]]) return vals[idx[0]];
+    if (tu >= ft[idx[idx.length - 1]]) return vals[idx[idx.length - 1]];
+    let lo = 0, hi = idx.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ft[idx[mid]] <= tu) lo = mid; else hi = mid; }
+    const a = idx[lo], b = idx[hi]; return vals[a] + (vals[b] - vals[a]) * (tu - ft[a]) / (ft[b] - ft[a]);
+  };
+  const lat = f.map((x) => x.lat), lon = f.map((x) => x.lon), spd = f.map((x) => x.speed), crs = f.map((x) => x.course);
+  const all = f.map(() => true), okS = spd.map(Number.isFinite), okC = crs.map(Number.isFinite);
+  const sn = crs.map((c) => Math.sin(c * RAD)), cs = crs.map((c) => Math.cos(c * RAD));
+  for (const row of out) {
+    const tu = row[18]; if (!Number.isFinite(tu)) continue;
+    let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (ft[m] < tu) lo = m + 1; else hi = m; }
+    const prev = ft[Math.max(0, Math.min(n - 1, lo - 1))], nxt = ft[Math.max(0, Math.min(n - 1, lo))];
+    const near = Math.min(Math.abs(tu - prev), Math.abs(nxt - tu));
+    if (!(near <= CFG.GPS_MAX_GAP_S && (nxt - prev) <= 2 * CFG.GPS_MAX_GAP_S)) continue;
+    row[19] = interp(tu, lat, all); row[20] = interp(tu, lon, all); row[21] = interp(tu, spd, okS);
+    if (okC.some(Boolean)) row[22] = ((Math.atan2(interp(tu, sn, okC), interp(tu, cs, okC)) * DEG) + 360) % 360;
+  }
+  return out;
+}
+const CSV_COLS = ["t_dev_s", "t_pc_s", "ax_g", "ay_g", "az_g", "gx_dps", "gy_dps", "gz_dps", "roll_deg", "pitch_deg", "yaw_deg", "yawrate_dps",
+  "long_g", "lat_g", "lin_z_g", "long_lpf_g", "lat_lpf_g", "still", "t_unix_s", "lat_deg", "lon_deg", "speed_mps", "course_deg"];
+const CSV_FMT = [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 3, 7, 7, 3, 2];
+function buildCsv(rows, fixes, meta) {
+  const data = attachGps(rows, fixes);
+  const lines = ["# imu_log phone (ax..gz are RAW sensor-frame values; the others are derived; lat/lon interpolated at each sample)"];
+  for (const k of Object.keys(meta)) lines.push(`# ${k}: ${meta[k]}`);
+  lines.push(CSV_COLS.join(","));
+  for (const r of data) lines.push(r.map((v, i) => (Number.isFinite(v) ? v.toFixed(CSV_FMT[i]) : "")).join(","));
+  return lines.join("\n") + "\n";
+}
+function buildMeta(startDate) {
+  return { start: startDate.toISOString(), gyro_bias_dps: S.bias.map((v) => v.toFixed(5)).join(" "),
+    mount_matrix: S.mount.flat().map((v) => v.toFixed(6)).join(" "), version: "phone-1",
+    note: "gyro_bias/mount are the values at record start; auto bias learning continues while still" };
+}
+/* ---- Arduino 時刻 → 端末の時計 (BLE の遅延ばらつき対策: 最小遅延を基準にする) ---- */
+const clock = { win: [], update(tDev, now) { this.win.push(now - tDev); if (this.win.length > 600) this.win.shift(); let m = Infinity; for (const v of this.win) if (v < m) m = v; return tDev + m; }, reset() { this.win = []; } };
+const stream = { lastTs: null, lastPc: null, t: 0, note: "" };
+function onPacket(dv) {
+  const nowWall = Date.now() / 1000, nowPc = performance.now() / 1000;
+  let ax, ay, az, gx, gy, gz, dt;
+  if (dv.byteLength >= 16) {
+    ax = dv.getInt16(0, true) / 1000; ay = dv.getInt16(2, true) / 1000; az = dv.getInt16(4, true) / 1000;
+    gx = dv.getInt16(6, true) / 10; gy = dv.getInt16(8, true) / 10; gz = dv.getInt16(10, true) / 10;
+    const ts = dv.getUint32(12, true);
+    dt = stream.lastTs === null ? 0 : ((ts - stream.lastTs) >>> 0) / 1e6; stream.lastTs = ts; stream.note = "";
+  } else if (dv.byteLength >= 12) {
+    ax = dv.getInt16(0, true) / 1000; ay = dv.getInt16(2, true) / 1000; az = dv.getInt16(4, true) / 1000;
+    gx = dv.getInt16(6, true) / 10; gy = dv.getInt16(8, true) / 10; gz = dv.getInt16(10, true) / 10;
+    dt = stream.lastPc === null ? 0 : nowPc - stream.lastPc; stream.note = "古いArduinoスケッチです(giga_imu_ble_v2.ino を書き込んでください)";
+  } else return;
+  stream.lastPc = nowPc; stream.t += dt;
+  processSample(stream.t, dt <= 0.2 ? dt : 0, [ax, ay, az], [gx, gy, gz], clock.update(stream.t, nowWall));
+}
+function classify(lg, lt) {
+  const th = CFG.ACC_THRESHOLD_G, p = [];
+  if (lg > th) p.push("加速中"); else if (lg < -th) p.push("ブレーキ中");
+  if (lt > th) p.push("左旋回"); else if (lt < -th) p.push("右旋回");
+  return p.length ? p.join(" + ") : "一定速 / 惰性";
+}
+if (typeof module !== "undefined") module.exports = { CFG, processSample, resetFusion, levelCalibration, alignAxes, getState: () => S, setState: (s) => { S = s; }, newState, buildCsv, attachGps, onPacket, classify };
+
+</script>
+
+<script id="ui">
+const SVC = "19b10000-e8f2-537e-4f6c-d104768a1214", CHR = "19b10001-e8f2-537e-4f6c-d104768a1214";
+const $ = (id) => document.getElementById(id);
+const ui = { dev: null, userDisc: false, demo: null, gps: { on: false, watch: null, fixes: [], last: null, speed: NaN }, wake: null, bleOk: false };
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function setChip(el, text, cls) { el.textContent = text; el.className = "chip" + (cls ? " " + cls : ""); }
+function setBle(text, ok) { ui.bleOk = !!ok; setChip($("bleChip"), "Bluetooth: " + text, ok ? "ok" : ""); }
+function msg(t, sec) { setMessage(t, sec || 8); }
+
+/* ---------- Bluetooth ---------- */
+async function connectBle() {
+  if (!navigator.bluetooth) { msg("このブラウザは Bluetooth(Web Bluetooth)に対応していません。\nAndroid の Chrome で、https のページとして開いてください。(iPhone の Safari は非対応)", 15); return; }
+  try {
+    stopDemo(); ui.userDisc = false; setBle("接続先を選択中…");
+    ui.dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }, { name: "GIGA-IMU" }], optionalServices: [SVC] });
+    ui.dev.addEventListener("gattserverdisconnected", onDisc);
+    await gattConnect();
+  } catch (e) { setBle("未接続"); msg("接続できませんでした: " + (e && e.message ? e.message : e), 12); }
+}
+async function gattConnect() {
+  setBle("接続中…");
+  const server = await ui.dev.gatt.connect();
+  const svc = await server.getPrimaryService(SVC);
+  const ch = await svc.getCharacteristic(CHR);
+  stream.lastTs = null; stream.lastPc = null; clock.reset(); resetFusion();
+  ch.addEventListener("characteristicvaluechanged", (ev) => onPacket(ev.target.value));
+  await ch.startNotifications();
+  setBle("接続済み", true); requestWake(); msg("接続しました。停車してしばらく待つと『停止中』になり、校正できます", 8);
+}
+function onDisc() { setBle("切断。再接続中…"); if (!ui.userDisc) retry(0); }
+async function retry(n) {
+  if (!ui.dev || ui.userDisc) return;
+  if (n > 30) { setBle("切断"); return; }
+  try { await gattConnect(); } catch (e) { setTimeout(() => retry(n + 1), 1500); }
+}
+function disconnectBle() { ui.userDisc = true; try { if (ui.dev && ui.dev.gatt.connected) ui.dev.gatt.disconnect(); } catch (e) {} stopDemo(); setBle("未接続"); }
+
+/* ---------- デモ (センサー無しで画面を確認) ---------- */
+function randn() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+function startDemo() {
+  if (ui.demo) return; disconnectBle(); ui.userDisc = false; resetFusion(); setBle("デモ中", true);
+  const D = { t: 0, V: 0, last: performance.now() }, dt = 0.01, g = 9.80665, bias = [0.4, 0.05, 0.13];
+  ui.demo = setInterval(() => {
+    const now = performance.now(); let n = Math.min(10, Math.floor((now - D.last) / (dt * 1000)));
+    D.last += n * dt * 1000;
+    for (; n > 0; n--) {
+      D.t += dt; const c = D.t % 40; let al = 0;
+      if (c >= 6 && c < 10) al = 0.25; else if (c >= 30 && c < 33) al = -0.3;
+      D.V = Math.max(0, D.V + al * g * dt); if (c < 6 || c >= 34) D.V = 0;
+      const mv = D.V > 0.5, k = Math.min(D.V / 9.8, 1), on = c >= 10 && c < 30;
+      const psid = on ? 25 * RAD * Math.sin(0.5 * (c - 10)) * k : 0, phi = on ? 5 * RAD * Math.sin(0.5 * (c - 10)) * k : 0, phid = on ? 5 * RAD * 0.5 * Math.cos(0.5 * (c - 10)) * k : 0;
+      const om = [phid, psid * Math.sin(phi), psid * Math.cos(phi)], up = [0, Math.sin(phi), Math.cos(phi)];
+      const f = [up[0] + al + randn() * (mv ? 0.09 : 0.02), up[1] + D.V * psid / g + randn() * (mv ? 0.09 : 0.02), up[2] + randn() * (mv ? 0.09 : 0.02)];
+      const gy = [om[0] * DEG + bias[0] + randn() * (mv ? 2 : 1), om[1] * DEG + bias[1] + randn() * (mv ? 2 : 1), om[2] * DEG + bias[2] + randn() * (mv ? 0.3 : 0.15)];
+      processSample(D.t, dt, f, gy, Date.now() / 1000);
+    }
+  }, 20);
+  msg("デモ: 停車 → 加速 → 蛇行 → ブレーキ → 停車 を40秒周期で繰り返します", 10);
+}
+function stopDemo() { if (ui.demo) { clearInterval(ui.demo); ui.demo = null; setBle("未接続"); } }
+
+/* ---------- GPS ---------- */
+function toggleGps() {
+  if (ui.gps.on) { navigator.geolocation.clearWatch(ui.gps.watch); ui.gps.on = false; setChip($("gpsChip"), "GPS: OFF"); $("bGps").textContent = "GPS: OFF → ON"; $("bGps").classList.remove("on"); ui.gps.speed = NaN; return; }
+  if (!navigator.geolocation) { msg("このブラウザは位置情報に対応していません", 8); return; }
+  ui.gps.on = true; setChip($("gpsChip"), "GPS: 測位中…"); $("bGps").textContent = "GPS: ON → OFF"; $("bGps").classList.add("on");
+  ui.gps.watch = navigator.geolocation.watchPosition((p) => {
+    const c = p.coords, prev = ui.gps.last;
+    let speed = c.speed == null ? NaN : c.speed, course = c.heading == null ? NaN : c.heading;
+    const fix = { t: p.timestamp / 1000, lat: c.latitude, lon: c.longitude, speed, course, acc: c.accuracy, lg: S.latest.linF[0], lt: S.latest.linF[1], yr: S.latest.yawrate };
+    if (prev && (Number.isNaN(speed) || Number.isNaN(course))) {
+      const dtp = fix.t - prev.t, R = 6371000, p1 = prev.lat * RAD, p2 = fix.lat * RAD, dl = (fix.lon - prev.lon) * RAD;
+      const a = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2, dist = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+      if (Number.isNaN(speed) && dtp > 0.2) fix.speed = dist / dtp;
+      if (Number.isNaN(course) && dist > 1) fix.course = (Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl)) * DEG + 360) % 360;
+    }
+    ui.gps.last = fix; ui.gps.speed = fix.speed; ui.gps.fixes.push(fix); hdUpdate(fix);
+    if (ui.gps.fixes.length > 20000) ui.gps.fixes.splice(0, 5000);
+    setChip($("gpsChip"), `GPS: 精度 ${Math.round(c.accuracy)} m`, c.accuracy < 20 ? "ok" : "");
+  }, (err) => { setChip($("gpsChip"), "GPS: エラー", "bad"); msg("GPSエラー: " + err.message + "\n(位置情報の許可と、スマホの位置情報オンを確認)", 12); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+}
+
+/* ---------- 向き(方位) ----------
+   ジャイロのYawは「起動時の向きからの相対角」。GPSの進行方向(北=0°, 時計回り)と
+   「ほぼ直進で速度が出ている時」に照合して、絶対方位に合わせ続ける(ドリフトも吸収)。
+   方位 = オフセット − Yaw   (Yawは左回りが+) */
+const HD = { off: null, tFix: 0, nFix: 0 };
+const wrap180 = (a) => ((a + 540) % 360) - 180, wrap360 = (a) => ((a % 360) + 360) % 360;
+function hdUpdate(fix) {
+  const L = S.latest;
+  if (!L.has || !Number.isFinite(fix.course) || !(fix.speed >= 4) || !(fix.acc <= 25)) return;
+  if (Math.abs(L.yawrate) > 4 || Math.abs(L.linF[1]) > 0.12) return;      // 曲がっている/横滑り中は使わない
+  const target = fix.course + L.yaw;
+  if (HD.off == null) HD.off = wrap360(target); else HD.off = wrap360(HD.off + 0.25 * wrap180(target - HD.off));
+  HD.tFix = fix.t; HD.nFix++;
+}
+function hdNow() { return L_ok() ? wrap360((HD.off == null ? 0 : HD.off) - S.latest.yaw) : null; }
+function L_ok() { return S.latest.has; }
+const CARD8 = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
+// 既存の関数をラップ: Yawを0に戻す→方位が飛ばないようオフセットを補正 / 校正・再接続→一旦無効化して再取得
+{
+  const _zy = zeroYaw; zeroYaw = function (q) { const y0 = S.latest.yaw; _zy(q); if (HD.off != null) HD.off = wrap360(HD.off - y0); };
+  const _rf = resetFusion; resetFusion = function () { _rf(); HD.off = null; HD.nFix = 0; };
+  const _lc = levelCalibration; levelCalibration = function () { _lc(); HD.off = null; };
+  const _aa = alignAxes; alignAxes = function () { _aa(); HD.off = null; };
+}
+function drawCompass() {
+  const c = $("cmp"), dpr = fitCanvas(c), ctx = c.getContext("2d"), W = c.width, H = c.height; if (!W) return; ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 14 * dpr, hd = hdNow();
+  ctx.strokeStyle = css("--grid"); ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.font = `bold ${13 * dpr}px system-ui`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const rel = HD.off == null;
+  [["N", 0], ["E", 90], ["S", 180], ["W", 270]].forEach(([t, a]) => { const r = a * RAD; ctx.fillStyle = a === 0 && !rel ? css("--red") : css("--muted"); ctx.fillText(rel && a === 0 ? "前" : t, cx + (R + 9 * dpr) * Math.sin(r) * 0.0 + (R - 12 * dpr) * Math.sin(r), cy - (R - 12 * dpr) * Math.cos(r)); });
+  for (let a = 0; a < 360; a += 30) { const r = a * RAD, r1 = R, r2 = R - (a % 90 === 0 ? 0 : 6 * dpr); if (a % 90) { ctx.beginPath(); ctx.moveTo(cx + r1 * Math.sin(r), cy - r1 * Math.cos(r)); ctx.lineTo(cx + r2 * Math.sin(r), cy - r2 * Math.cos(r)); ctx.stroke(); } }
+  // GPS進行方向(細い青い印)
+  const g = ui.gps.last; if (g && Number.isFinite(g.course) && g.speed >= 2 && Date.now() / 1000 - g.t < 4 && !rel) {
+    const r = g.course * RAD; ctx.fillStyle = css("--blue"); ctx.beginPath(); ctx.arc(cx + R * Math.sin(r), cy - R * Math.cos(r), 5 * dpr, 0, 2 * Math.PI); ctx.fill();
+  }
+  if (hd == null) return;
+  // 車体の向き(赤い矢印)
+  const r = hd * RAD, L1 = R - 22 * dpr, sx = Math.sin(r), sy = -Math.cos(r);
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(r); ctx.fillStyle = css("--red"); ctx.beginPath(); ctx.moveTo(0, -L1); ctx.lineTo(10 * dpr, 6 * dpr); ctx.lineTo(0, 0); ctx.lineTo(-10 * dpr, 6 * dpr); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = css("--muted"); ctx.beginPath(); ctx.arc(0, 0, 3 * dpr, 0, 2 * Math.PI); ctx.fill(); ctx.restore();
+}
+function updateHeadingText() {
+  const hd = hdNow(), big = $("hdBig"), sub = $("hdSub");
+  const d0 = hd == null ? 0 : Math.round(hd) % 360;
+  if (hd == null) { big.textContent = "--"; sub.textContent = "センサー未接続"; return; }
+  const rel = HD.off == null;
+  big.textContent = rel ? `${d0}°` : `${CARD8[Math.round(hd / 45) % 8]} ${String(d0).padStart(3, "0")}°`;
+  if (rel) { sub.textContent = ui.gps.on ? "相対角(起動時の向き=0°)\nGPS補正待ち: 直進で14km/h以上、精度25m以内で走ると方位に合います" : "相対角(起動時の向き=0°)\n「GPS: OFF → ON」にして走ると、北基準の方位になります"; sub.style.whiteSpace = "pre-line"; return; }
+  const ago = Math.round(Date.now() / 1000 - HD.tFix), g = ui.gps.last; sub.style.whiteSpace = "pre-line";
+  let t = `赤=車体の向き(ジャイロ)  青●=GPS進行方向\nGPSで補正: ${HD.nFix}回 / 最終 ${ago > 999 ? "--" : ago}秒前`;
+  if (g && Number.isFinite(g.course) && g.speed >= 4 && Date.now() / 1000 - g.t < 3) t += `\n進行方向との差 ${wrap180(g.course - hd) >= 0 ? "+" : ""}${wrap180(g.course - hd).toFixed(0)}° (参考)`;
+  sub.textContent = t;
+}
+
+/* ---------- 記録 / 保存 ---------- */
+function startRecord() {
+  if (!S.latest.has) { msg("先に接続(またはデモ)して、データを受信してください", 8); return; }
+  if (CFG.YAW_ZERO_ON_RECORD) zeroYaw(true);
+  S.rec.rows = []; S.rec.tPc0 = performance.now(); S.rec.startDate = new Date(); S.rec.meta = buildMeta(S.rec.startDate); S.rec.on = true;
+  $("bRec").textContent = "■ 停止して保存"; $("recChip").style.display = ""; setChip($("recChip"), "● 記録中", "rec");
+  msg("記録を開始しました (Yaw=0)", 5);
+}
+function download(text, name) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv" })), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 15000);
+}
+function stopRecord() {
+  S.rec.on = false; const rows = S.rec.rows, d = S.rec.startDate; S.rec.rows = [];
+  $("bRec").textContent = "● 記録開始"; $("recChip").style.display = "none";
+  if (!rows.length) { msg("データが受信できていないため、保存するものがありません", 10); return; }
+  const t0 = d.getTime() / 1000, fixes = ui.gps.fixes.filter((f) => f.t >= t0 - 5);
+  const csv = buildCsv(rows, fixes, S.rec.meta), p = (n) => String(n).padStart(2, "0");
+  const name = `imu_log_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.csv`;
+  download(csv, name);
+  msg(`保存しました: ${name}\n(${rows.length} サンプル、GPS ${fixes.length} 点)  ブラウザの「ダウンロード」フォルダを確認してください`, 20);
+}
+async function requestWake() { try { if ("wakeLock" in navigator) ui.wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (ui.bleOk)) requestWake(); });
+
+/* ---------- 描画 ---------- */
+function fitCanvas(c) { const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, w = Math.round(r.width * dpr), h = Math.round(r.height * dpr); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return dpr; }
+function drawGGon(c, lg, lt, trail, has, still, stateEl) {
+  const dpr = fitCanvas(c), ctx = c.getContext("2d"), W = c.width, H = c.height; if (!W) return; ctx.clearRect(0, 0, W, H);
+  let peak = Math.max(Math.abs(lg), Math.abs(lt)); for (const p of trail) peak = Math.max(peak, Math.abs(p[1]), Math.abs(p[2]));
+  const want = Math.max(CFG.GG_RANGE_G, Math.ceil(peak * 2.2) / 2);
+  const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 10 * dpr, k = R / want;
+  ctx.lineWidth = 1 * dpr; ctx.strokeStyle = css("--grid"); ctx.fillStyle = css("--muted"); ctx.font = `${12 * dpr}px system-ui`; ctx.setLineDash([5 * dpr, 5 * dpr]);
+  for (let g = 0.25; g <= want + 1e-9; g += 0.25) { ctx.beginPath(); ctx.arc(cx, cy, g * k, 0, 2 * Math.PI); ctx.stroke(); ctx.fillText(g.toFixed(2) + "g", cx + g * k * 0.72 + 3 * dpr, cy - g * k * 0.72); }
+  ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
+  ctx.font = `bold ${15 * dpr}px system-ui`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = css("--green"); ctx.fillText("加速", cx, cy - R + 12 * dpr); ctx.fillStyle = css("--red"); ctx.fillText("ブレーキ", cx, cy + R - 12 * dpr);
+  ctx.fillStyle = css("--blue"); ctx.textAlign = "left"; ctx.fillText("左", cx - R + 6 * dpr, cy - 14 * dpr); ctx.textAlign = "right"; ctx.fillText("右", cx + R - 6 * dpr, cy - 14 * dpr);
+  const cl = R * 0.2, cw = R * 0.11; ctx.fillStyle = css("--card"); ctx.strokeStyle = css("--fg"); ctx.lineWidth = 2 * dpr;
+  ctx.beginPath(); ctx.rect(cx - cw, cy - cl, cw * 2, cl * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.beginPath(); ctx.moveTo(cx - cw, cy - cl); ctx.lineTo(cx + cw, cy - cl); ctx.lineTo(cx, cy - cl - cw * 0.9); ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (trail.length > 1) { ctx.strokeStyle = css("--blue"); ctx.globalAlpha = 0.5; ctx.lineWidth = 2 * dpr; ctx.beginPath(); trail.forEach((p, i) => { const x = cx - p[2] * k, y = cy - p[1] * k; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.globalAlpha = 1; }
+  const sx = cx - lt * k, sy = cy - lg * k, mag = Math.hypot(lg, lt);
+  const col = mag < CFG.ACC_THRESHOLD_G ? css("--muted") : (Math.abs(lt) > Math.abs(lg) ? css("--blue") : (lg > 0 ? css("--green") : css("--red")));
+  if (mag > 0.02) {
+    const ang = Math.atan2(sy - cy, sx - cx), hl = 16 * dpr; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 7 * dpr; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(sx - Math.cos(ang) * hl * 0.6, sy - Math.sin(ang) * hl * 0.6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - hl * Math.cos(ang - 0.45), sy - hl * Math.sin(ang - 0.45)); ctx.lineTo(sx - hl * Math.cos(ang + 0.45), sy - hl * Math.sin(ang + 0.45)); ctx.closePath(); ctx.fill();
+  }
+  ctx.beginPath(); ctx.fillStyle = col; ctx.arc(sx, sy, 7 * dpr, 0, 2 * Math.PI); ctx.fill();
+  if (stateEl) { stateEl.textContent = has ? classify(lg, lt) + (still ? "  [停止中]" : "") : "未接続"; stateEl.style.color = has && mag >= CFG.ACC_THRESHOLD_G ? col : css("--muted"); }
+}
+function drawGG() { const L = S.latest.linF; drawGGon($("gg"), L[0], L[1], S.trail, S.latest.has, S.latest.still, $("state")); }
+function drawTS() {
+  const c = $("ts"), dpr = fitCanvas(c), ctx = c.getContext("2d"), W = c.width, H = c.height; ctx.clearRect(0, 0, W, H);
+  const hist = S.history; if (hist.length < 3) return;
+  const tN = hist[hist.length - 1][0], t0 = tN - CFG.HISTORY_SECONDS, pad = 34 * dpr, h1 = (H - 8 * dpr) * 0.58, h2 = (H - 8 * dpr) * 0.42 - 6 * dpr;
+  const xs = (t) => pad + (t - t0) / CFG.HISTORY_SECONDS * (W - pad - 6 * dpr);
+  let ym = 0.5, yy = 30; for (const h of hist) if (h[0] >= t0) { ym = Math.max(ym, Math.abs(h[1]) * 1.2, Math.abs(h[2]) * 1.2); yy = Math.max(yy, Math.abs(h[3]) * 1.2); }
+  const panel = (y0, h, ymax, cols, label) => {
+    ctx.save(); ctx.beginPath(); ctx.rect(pad, y0, W - pad - 6 * dpr, h); ctx.clip();
+    ctx.fillStyle = "rgba(128,128,128,0.25)"; let s = null;
+    hist.forEach((q, i) => { if (q[0] < t0) return; if (q[7] > 0.5 && s === null) s = q[0]; if ((q[7] < 0.5 || i === hist.length - 1) && s !== null) { ctx.fillRect(xs(s), y0, xs(q[0]) - xs(s), h); s = null; } });
+    ctx.restore(); ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1 * dpr; ctx.strokeRect(pad, y0, W - pad - 6 * dpr, h);
+    ctx.beginPath(); ctx.moveTo(pad, y0 + h / 2); ctx.lineTo(W - 6 * dpr, y0 + h / 2); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.font = `${11 * dpr}px system-ui`; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    ctx.fillText(ymax.toFixed(ymax < 5 ? 1 : 0), pad - 4 * dpr, y0 + 6 * dpr); ctx.fillText((-ymax).toFixed(ymax < 5 ? 1 : 0), pad - 4 * dpr, y0 + h - 6 * dpr); ctx.textAlign = "left"; ctx.fillText(label, pad + 4 * dpr, y0 + 10 * dpr);
+    ctx.save(); ctx.beginPath(); ctx.rect(pad, y0, W - pad - 6 * dpr, h); ctx.clip();
+    for (const [idx, color] of cols) { ctx.strokeStyle = color; ctx.lineWidth = 2 * dpr; ctx.beginPath(); let first = true; for (const q of hist) { if (q[0] < t0) continue; const x = xs(q[0]), y = y0 + h / 2 - q[idx] / ymax * (h / 2); first ? ctx.moveTo(x, y) : ctx.lineTo(x, y); first = false; } ctx.stroke(); }
+    ctx.restore();
+  };
+  panel(4 * dpr, h1, ym, [[1, css("--red")], [2, css("--blue")]], "前後G(赤) 横G(青)  灰色=停止中");
+  panel(4 * dpr + h1 + 6 * dpr, h2, yy, [[3, css("--green")]], "ヨーレート °/s");
+}
+function updateNums() {
+  const L = S.latest, f = (v, d) => (L.has ? v.toFixed(d) : "--");
+  $("nLong").textContent = L.has ? (L.linF[0] >= 0 ? "+" : "") + L.linF[0].toFixed(2) : "--"; $("nLat").textContent = L.has ? (L.linF[1] >= 0 ? "+" : "") + L.linF[1].toFixed(2) : "--";
+  $("nYr").textContent = f(L.yawrate, 1); $("nRoll").textContent = f(L.roll, 1); $("nPitch").textContent = f(L.pitch, 1); $("nYaw").textContent = f(L.yaw, 1);
+  const sp = ui.gps.speed; $("speed").innerHTML = (Number.isFinite(sp) ? (sp * 3.6).toFixed(0) : "--") + "<small> km/h</small>";
+  $("msg").textContent = (Date.now() < S.messageUntil ? S.message : "") + (stream.note ? "\n" + stream.note : "");
+  if (S.rec.on) setChip($("recChip"), `● 記録中 ${S.rec.rows.length} 点`, "rec");
+  $("foot").textContent = `ジャイロバイアス: ${S.bias.map((v) => v.toFixed(3)).join(", ")} °/s   取付け補正: ${S.calibNote || (S.mount[0][0] === 1 && S.mount[1][1] === 1 ? "なし" : "あり")}`;
+}
+
+/* ===================== 地図 (外部ライブラリなし。タイルを自前で描画) ===================== */
+const TS = 256;
+const SOURCES = {
+  osm: { url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attr: "© OpenStreetMap contributors", maxz: 19 },
+  gsi: { url: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png", attr: "地理院タイル", maxz: 18 },
+};
+const MAPCFG = { src: "osm", net: true, persist: false, bytes: 0, failUntil: 0, err: "", mem: new Map(), pending: new Set(), missing: new Set(), queue: [], active: 0, puts: 0, nReq: 0 };
+const TILE_CACHE = "imu-tiles", TILE_CACHE_MAX = 2500;
+let mapDirty = true;
+function worldPx(lat, lon, z) { const s = TS * 2 ** z, sn = Math.sin(Math.max(-85, Math.min(85, lat)) * RAD); return [(lon + 180) / 360 * s, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * s]; }
+function fromWorldPx(x, y, z) { const s = TS * 2 ** z; return [Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y / s)) * DEG, x / s * 360 - 180]; }
+function tileUrl(z, x, y) { return SOURCES[MAPCFG.src].url.replace("{z}", z).replace("{x}", x).replace("{y}", y); }
+function netOk() { return MAPCFG.net && navigator.onLine !== false && Date.now() > MAPCFG.failUntil; }
+function netStatus() {
+  if (!MAPCFG.net) return "OFF (保存済みの地図だけ使用)";
+  if (navigator.onLine === false) return "オフライン (保存済みの地図だけ使用)";
+  if (Date.now() < MAPCFG.failUntil) return "接続エラー (しばらく後に再試行)";
+  return "ONLINE";
+}
+function getTile(z, x, y) {
+  const key = MAPCFG.src + "/" + z + "/" + x + "/" + y, m = MAPCFG.mem.get(key);
+  if (m) { MAPCFG.mem.delete(key); MAPCFG.mem.set(key, m); return m; }
+  if (MAPCFG.missing.has(key) || MAPCFG.pending.has(key)) return null;
+  MAPCFG.pending.add(key); MAPCFG.queue.push([key, tileUrl(z, x, y)]);
+  while (MAPCFG.queue.length > 48) MAPCFG.pending.delete(MAPCFG.queue.shift()[0]);
+  pumpTiles(); return null;
+}
+function pumpTiles() {
+  while (MAPCFG.active < 4 && MAPCFG.queue.length) {
+    const [key, url] = MAPCFG.queue.shift(); MAPCFG.active++;
+    loadTile(key, url).finally(() => { MAPCFG.active--; MAPCFG.pending.delete(key); mapDirty = true; pumpTiles(); });
+  }
+}
+async function loadTile(key, url) {
+  try {
+    let blob = null, cache = null;
+    try { cache = await caches.open(TILE_CACHE); const hit = await cache.match(url); if (hit) blob = await hit.blob(); } catch (e) {}
+    if (!blob && netOk()) {
+      MAPCFG.nReq++;
+      const r = await fetch(url, { mode: "cors" });
+      if (r.status === 404 || r.status === 400 || r.status === 403) { MAPCFG.missing.add(key); return; }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      blob = await r.blob(); MAPCFG.bytes += blob.size;
+      if (MAPCFG.persist && cache) { await cache.put(url, new Response(blob.slice(), { headers: { "content-type": "image/png" } })); if (++MAPCFG.puts % 50 === 0) trimTileCache(cache); }
+    }
+    if (blob) { MAPCFG.mem.set(key, await createImageBitmap(blob)); while (MAPCFG.mem.size > 220) MAPCFG.mem.delete(MAPCFG.mem.keys().next().value); }
+  } catch (e) { MAPCFG.failUntil = Date.now() + 20000; MAPCFG.err = String(e && e.message || e); }
+}
+async function trimTileCache(cache) { try { const ks = await cache.keys(); for (let i = 0; i < ks.length - TILE_CACHE_MAX; i++) await cache.delete(ks[i]); } catch (e) {} }
+
+function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function colorFor(v, mode, lo, hi) {
+  if (!Number.isFinite(v)) return "rgb(120,120,120)";
+  let rgb;
+  if (mode === "speed") { const t = Math.max(0, Math.min(1, (v - lo) / Math.max(1e-6, hi - lo))); rgb = t < 0.5 ? mix([40, 90, 230], [40, 200, 90], t * 2) : mix([40, 200, 90], [235, 50, 40], (t - 0.5) * 2); }
+  else { const t = Math.max(-1, Math.min(1, v / Math.max(1e-6, hi))); rgb = mix([200, 200, 200], t < 0 ? [30, 100, 230] : [235, 55, 45], Math.abs(t)); }
+  return `rgb(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0})`;
+}
+function modeValue(p, mode) { return mode === "speed" ? p.spd * 3.6 : mode === "lat" ? p.lt : mode === "long" ? p.lg : p.yr; }
+function modeLabel(mode) { return mode === "speed" ? "速度 km/h" : mode === "lat" ? "横G (左+)" : mode === "long" ? "前後G (加速+)" : "ヨーレート °/s (左+)"; }
+function niceLen(t) { let b = 10; for (const v of [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000]) if (v <= t) b = v; return b; }
+
+class MapView {
+  constructor(canvas, opts) {
+    this.c = canvas; this.live = !!opts.live; this.follow = this.live; this.span = 500; this.clat = 35.6812; this.clon = 139.7671; this.z = 15;
+    this.pts = []; this.marker = null; this.mode = "speed"; this.overlay = ""; this.onPick = null; this.fitReq = false; this.lastZ = 15;
+    let drag = null;
+    canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, t: Date.now(), moved: 0 }; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.moved < 6) return; const dpr = window.devicePixelRatio || 1;
+      this.freeze(); const [wx, wy] = worldPx(this.clat, this.clon, this.z); [this.clat, this.clon] = fromWorldPx(wx - dx * dpr, wy - dy * dpr, this.z); mapDirty = true;
+    });
+    canvas.addEventListener("pointerup", (e) => { if (drag && drag.moved < 6 && Date.now() - drag.t < 400) this.pick(e); drag = null; });
+  }
+  freeze() { if (this.follow) { this.follow = false; this.z = this.lastZ; } }
+  zoom(dir) { if (this.follow) this.span = dir > 0 ? this.span / 1.6 : this.span * 1.6; else this.z = Math.max(3, Math.min(SOURCES[MAPCFG.src].maxz, this.z + dir)); mapDirty = true; }
+  fit() {
+    if (!this.pts.length) return; let a = 90, b = -90, c = 180, d = -180;
+    for (const p of this.pts) { a = Math.min(a, p.lat); b = Math.max(b, p.lat); c = Math.min(c, p.lon); d = Math.max(d, p.lon); }
+    this.clat = (a + b) / 2; this.clon = (c + d) / 2; this.fitBox = [a, b, c, d]; this.fitReq = true; this.follow = false; mapDirty = true;
+  }
+  pick(e) {
+    if (!this.onPick || !this.pts.length) return; const r = this.c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, px = (e.clientX - r.left) * dpr, py = (e.clientY - r.top) * dpr;
+    const [lx, ly] = this.topLeft; let best = -1, bd = (40 * dpr) ** 2;
+    this.pts.forEach((p, i) => { const [x, y] = worldPx(p.lat, p.lon, this.lastZ); const d = (x - lx - px) ** 2 + (y - ly - py) ** 2; if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) this.onPick(best);
+  }
+  render() {
+    const c = this.c; if (!c.clientWidth) return; const dpr = fitCanvas(c), ctx = c.getContext("2d"), W = c.width, H = c.height; const maxz = SOURCES[MAPCFG.src].maxz;
+    let lat = this.clat, lon = this.clon, z = this.z;
+    if (this.live && this.follow && this.marker) { lat = this.marker.lat; lon = this.marker.lon; }
+    if (this.live && this.follow) z = Math.max(3, Math.min(maxz, Math.round(Math.log2(156543.03 * Math.cos(lat * RAD) * W / this.span))));
+    if (this.fitReq && this.fitBox) {
+      const [a, b, c0, d] = this.fitBox, p0 = worldPx(b, c0, 0), p1 = worldPx(a, d, 0), bw = Math.max(1e-9, p1[0] - p0[0]), bh = Math.max(1e-9, p1[1] - p0[1]);
+      z = Math.max(3, Math.min(maxz, Math.floor(Math.log2(Math.min(0.8 * W / bw, 0.8 * H / bh))))); if (!Number.isFinite(z)) z = 16; this.z = z; this.fitReq = false;
+    }
+    z = Math.min(z, maxz); this.lastZ = z; if (!this.follow) this.z = z;
+    const [cx, cy] = worldPx(lat, lon, z), left = cx - W / 2, top = cy - H / 2; this.topLeft = [left, top];
+    ctx.fillStyle = "#d3d8de"; ctx.fillRect(0, 0, W, H);
+    const n = 2 ** z; let have = 0, need = 0;
+    for (let tx = Math.floor(left / TS); tx <= Math.floor((left + W) / TS); tx++) for (let ty = Math.floor(top / TS); ty <= Math.floor((top + H) / TS); ty++) {
+      if (ty < 0 || ty >= n) continue; need++; const img = getTile(z, ((tx % n) + n) % n, ty);
+      if (img) { ctx.drawImage(img, tx * TS - left, ty * TS - top, TS, TS); have++; }
+    }
+    if (!have) { ctx.strokeStyle = "rgba(90,100,110,0.35)"; ctx.lineWidth = 1; for (let x = -((left % 128) + 128) % 128; x < W; x += 128) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); } for (let y = -((top % 128) + 128) % 128; y < H; y += 128) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); } }
+    // 軌跡 (色 = 選択した値)
+    const m = this.mode; let lo = 0, hi = 1;
+    if (m === "speed") { hi = 30; for (const p of this.pts) if (Number.isFinite(p.spd)) hi = Math.max(hi, p.spd * 3.6); } else { hi = 0.3; for (const p of this.pts) { const v = modeValue(p, m); if (Number.isFinite(v)) hi = Math.max(hi, Math.abs(v)); } if (m === "yaw") hi = Math.max(hi, 20); }
+    if (this.pts.length > 1) {
+      ctx.lineCap = "round"; ctx.lineJoin = "round"; let prev = null;
+      for (const p of this.pts) { const q = worldPx(p.lat, p.lon, z), x = q[0] - left, y = q[1] - top; if (prev) { ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 9 * dpr * 0.7; ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(x, y); ctx.stroke(); } prev = [x, y]; }
+      prev = null; for (const p of this.pts) { const q = worldPx(p.lat, p.lon, z), x = q[0] - left, y = q[1] - top; if (prev) { ctx.strokeStyle = colorFor(modeValue(p, m), m, lo, hi); ctx.lineWidth = 5 * dpr * 0.7; ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(x, y); ctx.stroke(); } prev = [x, y]; }
+    }
+    if (this.marker) {
+      const q = worldPx(this.marker.lat, this.marker.lon, z), x = q[0] - left, y = q[1] - top;
+      if (Number.isFinite(this.marker.course)) { const a = this.marker.course * RAD, L = 30 * dpr; ctx.strokeStyle = "#e53935"; ctx.lineWidth = 4 * dpr; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + L * Math.sin(a), y - L * Math.cos(a)); ctx.stroke(); }
+      ctx.fillStyle = "#e53935"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3 * dpr; ctx.beginPath(); ctx.arc(x, y, 8 * dpr, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    }
+    // スケールバー・凡例・出典
+    const mpp = 156543.03 * Math.cos(lat * RAD) / 2 ** z, L = niceLen(W * 0.22 * mpp), bx = 14 * dpr, by = H - 40 * dpr;
+    ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fillRect(bx - 6 * dpr, by - 20 * dpr, L / mpp + 12 * dpr, 30 * dpr); ctx.strokeStyle = "#111"; ctx.lineWidth = 3 * dpr; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + L / mpp, by); ctx.stroke();
+    ctx.fillStyle = "#111"; ctx.font = `${12 * dpr}px system-ui`; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.fillText(L >= 1000 ? L / 1000 + " km" : L + " m", bx, by - 6 * dpr);
+    if (this.pts.length > 1) {
+      const gx = W - 150 * dpr - 10 * dpr, gy = H - 18 * dpr - 46 * dpr; ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.fillRect(gx - 4 * dpr, gy - 2 * dpr, 154 * dpr, 40 * dpr);
+      for (let i = 0; i < 140; i++) { const t = i / 139; ctx.fillStyle = colorFor(m === "speed" ? lo + t * (hi - lo) : (t * 2 - 1) * hi, m, lo, hi); ctx.fillRect(gx + i * dpr, gy + 16 * dpr, dpr + 0.5, 10 * dpr); }
+      ctx.fillStyle = "#111"; ctx.font = `${11 * dpr}px system-ui`; ctx.textAlign = "left"; ctx.fillText(modeLabel(m), gx, gy + 11 * dpr);
+      ctx.fillText(m === "speed" ? "0" : (-hi).toFixed(2), gx, gy + 38 * dpr); ctx.textAlign = "right"; ctx.fillText(m === "speed" ? hi.toFixed(0) : "+" + hi.toFixed(2), gx + 140 * dpr, gy + 38 * dpr);
+    }
+    ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,0.8)"; const at = SOURCES[MAPCFG.src].attr + (have ? "" : " (地図なし)"); ctx.font = `${10 * dpr}px system-ui`; const tw = ctx.measureText(at).width; ctx.fillRect(W - tw - 10 * dpr, H - 18 * dpr, tw + 10 * dpr, 18 * dpr); ctx.fillStyle = "#111"; ctx.fillText(at, W - 5 * dpr, H - 5 * dpr);
+    if (this.overlay) { ctx.font = `bold ${15 * dpr}px system-ui`; ctx.textAlign = "left"; const lines = this.overlay.split("\n"), w = Math.max(...lines.map((s) => ctx.measureText(s).width)); ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(8 * dpr, 8 * dpr, w + 16 * dpr, lines.length * 20 * dpr + 8 * dpr); ctx.fillStyle = "#fff"; lines.forEach((s, i) => ctx.fillText(s, 16 * dpr, 28 * dpr + i * 20 * dpr)); }
+    this.stat = { have, need, z };
+  }
+}
+const liveMap = new MapView($("map"), { live: true }), revMap = new MapView($("rMap"), { live: false });
+
+function livePts() {
+  const f = ui.gps.fixes, out = []; const a = f.length > 4000 ? f.length - 4000 : 0;
+  for (let i = a; i < f.length; i++) { const x = f[i]; out.push({ lat: x.lat, lon: x.lon, spd: x.speed, lg: x.lg || 0, lt: x.lt || 0, yr: x.yr || 0 }); }
+  return out;
+}
+let curTab = "live", lastMapDraw = 0;
+function updateLiveMap(now) {
+  const L = S.latest, last = ui.gps.last;
+  liveMap.pts = livePts(); liveMap.mode = $("mColor").value; liveMap.marker = last ? { lat: last.lat, lon: last.lon, course: last.course } : null;
+  const sp = Number.isFinite(ui.gps.speed) ? (ui.gps.speed * 3.6).toFixed(0) + " km/h" : "-- km/h";
+  liveMap.overlay = last ? `${sp}   ${L.has ? classify(L.linF[0], L.linF[1]) : "IMU未接続"}\n前後 ${L.linF[0] >= 0 ? "+" : ""}${L.linF[0].toFixed(2)} g   横 ${L.linF[1] >= 0 ? "+" : ""}${L.linF[1].toFixed(2)} g   ヨー ${L.yawrate.toFixed(0)}°/s` : (ui.gps.on ? "GPS測位中…" : "下の「GPS: OFF → ON」を押してください");
+  liveMap.render();
+  const st = liveMap.stat || {};
+  $("mInfo").textContent = `地図の通信: ${netStatus()}   タイル ${st.have || 0}/${st.need || 0}   取得済み ${(MAPCFG.bytes / 1e6).toFixed(2)} MB` + (MAPCFG.err && Date.now() < MAPCFG.failUntil ? `\nエラー: ${MAPCFG.err.slice(0, 60)}` : "") + `\n(地図が出なくても、位置は記録されます。後で「ログ確認」で地図に重ねられます)`;
+  $("mNet").textContent = "地図の通信: " + (MAPCFG.net ? "ON" : "OFF");
+}
+$("mFollow").onclick = () => { if (liveMap.follow) { liveMap.fit(); } else { liveMap.follow = true; } mapDirty = true; };
+$("mZin").onclick = () => liveMap.zoom(+1); $("mZout").onclick = () => liveMap.zoom(-1);
+$("mColor").onchange = () => { mapDirty = true; }; $("mSrc").onchange = (e) => { MAPCFG.src = e.target.value; mapDirty = true; };
+$("mNet").onclick = () => { MAPCFG.net = !MAPCFG.net; MAPCFG.failUntil = 0; mapDirty = true; msg(MAPCFG.net ? "地図の通信: ON" : "地図の通信: OFF (通信量を使いません。保存済みの地図だけ表示)", 6); };
+$("mPersist").onchange = (e) => { MAPCFG.persist = e.target.checked; msg(MAPCFG.persist ? "取得した地図を端末に保存します(最大約50MB)" : "地図は保存しません(メモリのみ)", 6); };
+
+/* ===================== ログ確認 (CSV を読み込んで地図に重ねる) ===================== */
+const REV = { n: 0, cols: null, pts: [], idx: [], cur: 0, playing: false, tPlay: 0, last: 0 };
+function parseLogCsv(text) {
+  const lines = text.split(/\r?\n/), meta = {}; let hdr = null; const rows = [];
+  for (const ln of lines) { if (!ln) continue; if (ln[0] === "#") { const i = ln.indexOf(":"); if (i > 0) meta[ln.slice(1, i).trim()] = ln.slice(i + 1).trim(); continue; } if (!hdr) { hdr = ln.split(",").map((s) => s.trim()); continue; } rows.push(ln.split(",")); }
+  if (!hdr || rows.length < 2) throw new Error("CSVの内容が読み取れません");
+  const col = (...names) => { for (const n of names) { const i = hdr.indexOf(n); if (i >= 0) return rows.map((r) => (r[i] === "" || r[i] === undefined ? NaN : parseFloat(r[i]))); } return null; };
+  const nan = () => rows.map(() => NaN);
+  const t0 = col("t_pc_s") || col("t_dev_s");
+  return { meta, n: rows.length, t: t0, tu: col("t_unix_s") || nan(), lat: col("lat_deg") || nan(), lon: col("lon_deg") || nan(), spd: col("speed_mps") || nan(),
+    lg: col("long_lpf_g", "long_g") || nan(), lt: col("lat_lpf_g", "lat_g") || nan(), yr: col("yawrate_dps") || nan(), still: col("still") || rows.map(() => 0), crs: col("course_deg") || nan() };
+}
+function loadReview(text, name) {
+  const cols = parseLogCsv(text); REV.cols = cols; REV.n = cols.n; REV.pts = []; REV.idx = [];
+  let last = null;
+  for (let i = 0; i < cols.n; i++) {
+    if (!Number.isFinite(cols.lat[i]) || !Number.isFinite(cols.lon[i])) continue;
+    const q = worldPx(cols.lat[i], cols.lon[i], 20); if (last && (q[0] - last[0]) ** 2 + (q[1] - last[1]) ** 2 < 4 ** 2 * 4) continue;   // 約 ≥ 数十cm 動いた点だけ
+    last = q; REV.idx.push(i); REV.pts.push({ lat: cols.lat[i], lon: cols.lon[i], spd: cols.spd[i], lg: cols.lg[i], lt: cols.lt[i], yr: cols.yr[i] });
+  }
+  $("rSlide").max = cols.n - 1; $("rSlide").value = 0; REV.cur = 0; REV.playing = false; $("rPlay").textContent = "▶ 再生";
+  revMap.pts = REV.pts; if (REV.pts.length) { revMap.fit(); } else { revMap.marker = null; }
+  const dur = cols.t[cols.n - 1] - cols.t[0], nvalid = cols.lat.filter(Number.isFinite).length;
+  $("rInfo").textContent = `${name}\n${cols.n} サンプル / ${dur.toFixed(1)} 秒 / 位置あり ${nvalid} サンプル` + (nvalid ? "" : "\n※このログには位置情報がありません (スマホ版で GPS を ON にして記録してください)");
+  setReviewIndex(0);
+}
+function setReviewIndex(i) {
+  const c = REV.cols; if (!c) return; i = Math.max(0, Math.min(c.n - 1, i | 0)); REV.cur = i; $("rSlide").value = i;
+  let j = i; while (j > 0 && !Number.isFinite(c.lat[j])) j--; if (!Number.isFinite(c.lat[j])) { j = i; while (j < c.n - 1 && !Number.isFinite(c.lat[j])) j++; }
+  revMap.marker = Number.isFinite(c.lat[j]) ? { lat: c.lat[j], lon: c.lon[j], course: c.crs[j] } : null;
+  const f = (v, d, s) => (Number.isFinite(v) ? (s && v >= 0 ? "+" : "") + v.toFixed(d) : "--");
+  const tu = c.tu[i], clock = Number.isFinite(tu) ? new Date(tu * 1000).toLocaleTimeString() + "  " : "";
+  $("rRead").innerHTML = `${clock}t=${(c.t[i] - c.t[0]).toFixed(1)} s${c.still[i] > 0.5 ? "  [停止中]" : ""}<br>速度 <b>${Number.isFinite(c.spd[j]) ? (c.spd[j] * 3.6).toFixed(0) : "--"}</b> km/h　前後G <b>${f(c.lg[i], 2, true)}</b>　横G <b>${f(c.lt[i], 2, true)}</b>　ヨー <b>${f(c.yr[i], 1, true)}</b>°/s`;
+  const trail = []; for (let k = Math.max(0, i - 300); k <= i; k++) trail.push([0, c.lg[k] || 0, c.lt[k] || 0]);
+  drawGGon($("rGg"), c.lg[i] || 0, c.lt[i] || 0, trail, true, c.still[i] > 0.5, null);
+  mapDirty = true;
+}
+revMap.onPick = (k) => setReviewIndex(REV.idx[k]);
+$("rFile").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { loadReview(await f.text(), f.name); } catch (err) { $("rInfo").textContent = "読み込みエラー: " + err.message; } };
+$("rSlide").oninput = (e) => { REV.playing = false; $("rPlay").textContent = "▶ 再生"; setReviewIndex(+e.target.value); };
+$("rColor").onchange = (e) => { revMap.mode = e.target.value; mapDirty = true; };
+$("rFit").onclick = () => revMap.fit(); $("rZin").onclick = () => revMap.zoom(+1); $("rZout").onclick = () => revMap.zoom(-1);
+$("rPlay").onclick = () => { if (!REV.cols) return; REV.playing = !REV.playing; $("rPlay").textContent = REV.playing ? "⏸ 一時停止" : "▶ 再生"; REV.tPlay = REV.cols.t[REV.cur]; REV.last = performance.now(); };
+$("rPng").onclick = () => { revMap.render(); $("rMap").toBlob((b) => { if (!b) { msg("画像を作成できませんでした", 6); return; } const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "map_review.png"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 15000); }, "image/png"); };
+function stepReview(now) {
+  if (!REV.playing || !REV.cols) return; const c = REV.cols, spd = +$("rSpeed").value; REV.tPlay += (now - REV.last) / 1000 * spd; REV.last = now;
+  let lo = REV.cur, hi = c.n - 1; if (REV.tPlay >= c.t[hi]) { REV.playing = false; $("rPlay").textContent = "▶ 再生"; setReviewIndex(hi); return; }
+  while (lo < hi) { const m = (lo + hi) >> 1; if (c.t[m] < REV.tPlay) lo = m + 1; else hi = m; } setReviewIndex(lo);
+}
+
+/* ---------- タブ ---------- */
+function showTab(n) { curTab = n; for (const t of ["live", "map", "review"]) $("tab-" + t).hidden = t !== n; document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === n)); mapDirty = true; }
+document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+
+let lastNum = 0;
+function frame(ts) {
+  if (curTab === "live") { drawGG(); drawTS(); drawCompass(); }
+  if (ts - lastNum > 100) { lastNum = ts; updateNums(); if (curTab === "live") updateHeadingText(); }
+  if (curTab === "map" && (mapDirty || ts - lastMapDraw > 400)) { lastMapDraw = ts; mapDirty = false; updateLiveMap(ts); }
+  if (curTab === "review") { stepReview(ts); if (mapDirty) { mapDirty = false; revMap.mode = $("rColor").value; revMap.render(); } }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- ボタン ---------- */
+$("bConnect").onclick = connectBle; $("bDemo").onclick = startDemo; $("bDisc").onclick = disconnectBle;
+$("bRec").onclick = () => (S.rec.on ? stopRecord() : startRecord());
+$("bGps").onclick = toggleGps;
+$("bGyro").onclick = () => { if (!S.latest.has) { msg("データを受信してから押してください", 6); return; } if (S.rec.on) { msg("記録を止めてから校正してください", 6); return; } S.calib = { active: true, tEnd: S.latest.t + CFG.CALIB_SECONDS, samples: [] }; msg(`ジャイロ校正中(${CFG.CALIB_SECONDS}秒)… 車を動かさないでください`, 5); };
+$("bLevel").onclick = () => levelCalibration(); $("bAlign").onclick = () => alignAxes(); $("bYaw").onclick = () => zeroYaw(false);
+window.IMU = { HD, hdNow, hdUpdate, get S() { return S; }, processSample, onPacket, startDemo, stopDemo, buildCsv, ui, MAPCFG, liveMap, revMap, REV, showTab, loadReview };
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
